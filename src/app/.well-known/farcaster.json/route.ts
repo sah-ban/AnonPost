@@ -17,7 +17,6 @@ export async function GET() {
       splashImageUrl: `${appUrl}/splash.png`,
       splashBackgroundColor: "#000000",
       castShareUrl: appUrl,
-      webhookUrl: `${appUrl}/api/webhook`,
       subtitle: "Post anonymously, for free",
       description: "Post anonymously, for free",
       primaryCategory: "social",
