@@ -10,7 +10,7 @@ import {
 import { hexToBytes } from "@noble/hashes/utils";
 import axios from "axios";
 
-const fid = 545039;
+const fid = 1009125;
 const SIGNER = process.env.PRIVATE_KEY || "";
 
 type CastType = "cast" | "reply" | "quote";
