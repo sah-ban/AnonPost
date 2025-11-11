@@ -25,7 +25,7 @@ export async function GET() {
       tags: ["anon", "post", "anoncast", "anonpost", "anononymous"],
       heroImageUrl: `${appUrl}/og.png`,
       tagline: "Post anonymously, for free",
-      ogTitle: "AnonPost - Post anonymously, for free",
+      ogTitle: "Post anonymously, for free",
       ogDescription: "Post anonymously, for free",
       baseBuilder: {
         allowedAddresses: ["0x06e5B0fd556e8dF43BC45f8343945Fb12C6C3E90"],
