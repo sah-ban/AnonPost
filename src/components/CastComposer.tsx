@@ -242,15 +242,7 @@ export default function CastComposer() {
         <ComposerHeader />
       </div>
       <QuoteOrReply />{" "}
-      <h2 className="text-base mb-2 text-center relative italic">
-        <div
-          className={`transition-opacity duration-500 ease-in-out ${
-            isTyping ? "opacity-0 pointer-events-none" : "opacity-100"
-          }`}
-        >
-          Post anonymously, for free
-        </div>
-      </h2>
+
       <div className="w-full max-w-lg bg-[#111418]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl p-3 space-y-1 transition-transform hover:scale-[1.01] hover:border-lime-400/40">
         {castHash &&
           username &&
