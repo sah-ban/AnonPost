@@ -236,7 +236,7 @@ export default function CastComposer() {
     if (context && !context?.client.added && result.hash) {
       sdk.actions.addMiniApp();
     }
-  }, [context?.client.added, result.hash]);
+  }, [context, context?.client.added, result.hash]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-2">
