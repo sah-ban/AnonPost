@@ -61,7 +61,7 @@ It integrates with the **Farcaster MiniApp SDK** and supports:
 
 ---
 
-## ⚙️ Project Structure## ⚙️ Project Structure
+## ⚙️ Project Structure
 
 ```
 
@@ -72,14 +72,10 @@ project/
 │  │  │  ├─ create-cast/route.ts               # API route to create/submit cast
 │  │  │  ├─ username/route.ts                  # Helper to fetch username by FID
 │  │  │  ├─ send-notifications/route.ts        # API route to send notifications on farcaster
-│  │  │  ├─ webhook/route.ts                   # Webhook t receive miniapp events
 │  │  ├─ .well-known/farcaster.json/route.ts   # Manifest for miniapp
 │  │  ├─ page.tsx                              # App entrypoint
 │  ├─ components/
 │  │  └─ CastComposer.tsx                      # Main UI component
-│  ├─ lib/
-│  │  ├─ kv.ts
-│  │  └─ notifs.ts
 ├─ public/
 │  ├─ icon.png
 │  ├─ og.png
@@ -111,13 +107,6 @@ HUB_URL=snapchain hub url
 # Public image upload key from ImgBB
 NEXT_PUBLIC_IMGBB_KEY=your_imgbb_api_key
 
-# Redis token and Url for storing notification token for miniaapp
-KV_REST_API_TOKEN=your redis token
-KV_REST_API_URL=your redis url
-
-# Neynar api key to parse webhook events
-NEYNAR_API_KEY=
-
 ```
 
 > ⚠️ Make sure the `PRIVATE_KEY` **does not start with `0x`**.  
@@ -136,12 +125,6 @@ Creates a new cast, reply, or quote.
 ### `GET /api/username?fid=<fid>`
 
 Fetches a user’s Farcaster username for display.
-
----
-
-### `POST /api/send-notifications`
-
-Sends miniapp notifications to all users who have added the miniapp and enabled notifications.
 
 ---
 
