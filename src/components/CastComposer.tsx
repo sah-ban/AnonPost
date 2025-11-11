@@ -443,7 +443,7 @@ export default function CastComposer() {
               alt="Farcaster"
               width={28}
               height={28}
-              className=""
+              className="rounded-lg object-cover"
             />
           )}
 
