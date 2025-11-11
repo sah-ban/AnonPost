@@ -232,6 +232,12 @@ export default function CastComposer() {
     }
   }, [result.hash]);
 
+  useEffect(() => {
+    if (!context?.client.added && result.hash) {
+      sdk.actions.addMiniApp();
+    }
+  }, [context?.client.added, result.hash]);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-2">
       <div
@@ -242,7 +248,6 @@ export default function CastComposer() {
         <ComposerHeader />
       </div>
       <QuoteOrReply />{" "}
-
       <div className="w-full max-w-lg bg-[#111418]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl p-3 space-y-1 transition-transform hover:scale-[1.01] hover:border-lime-400/40">
         {castHash &&
           username &&
