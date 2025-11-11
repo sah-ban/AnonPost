@@ -426,7 +426,7 @@ export default function CastComposer() {
           onClick={
             context
               ? () => sdk.actions.openUrl(`${process.env.NEXT_PUBLIC_URL}`)
-              : () => window.open("", "_blank")
+              : () => window.open("https://farcaster.xyz/miniapps/p87J0-BQ3G9D/anonpost", "_blank")
           }
           className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-white transition-all duration-300 border shadow-md
           ${
