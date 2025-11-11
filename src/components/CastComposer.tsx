@@ -233,7 +233,7 @@ export default function CastComposer() {
   }, [result.hash]);
 
   useEffect(() => {
-    if (!context?.client.added && result.hash) {
+    if (context && !context?.client.added && result.hash) {
       sdk.actions.addMiniApp();
     }
   }, [context?.client.added, result.hash]);
