@@ -2,10 +2,14 @@
 
 import dynamic from "next/dynamic";
 
-const CastComposer = dynamic(() => import("~/components/CastComposer"), {
+const UnderMaintenance = dynamic(() => import("~/components/UnderMaintenance"), {
+// const CastComposer = dynamic(() => import("~/components/CastComposer"), {
+
   ssr: false,
 });
 
 export default function App() {
-  return <CastComposer />;
+  return <UnderMaintenance />;
+    // return <CastComposer />;
+
 }
