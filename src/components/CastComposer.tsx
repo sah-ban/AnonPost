@@ -5,10 +5,14 @@ import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
 import sdk, { type Context } from "@farcaster/miniapp-sdk";
-import { Share2, Wallet2, Copy, Check, Globe } from "lucide-react";
+import { Share2, Wallet2, Copy, Check, Lock } from "lucide-react";
 import Image from "next/image";
 import { FarcasterEmbed } from "react-farcaster-embed/dist/client";
 import "react-farcaster-embed/dist/styles.css";
+import { useAccount, useBalance } from "wagmi";
+import { base } from "viem/chains";
+import { formatUnits } from "viem";
+import Connect from "./Connect";
 
 type CastType = "cast" | "reply" | "quote";
 
@@ -238,6 +242,85 @@ export default function CastComposer() {
     }
   }, [context, context?.client.added, result.hash]);
 
+  const { isConnected, address } = useAccount();
+  const TOKEN_ADDRESS = "0x4ed4e862860bed51a9570b96d89af5e1b0efefed" as const;
+  const TOKEN_NAME = "DEGEN";
+
+  const { data: balance } = useBalance({
+    address,
+    token: TOKEN_ADDRESS,
+    chainId: base.id,
+  });
+
+  const userBalance = balance ? Number(formatUnits(balance.value, 18)) : 0;
+
+  if (!context)
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-900">
+        <div className="flex flex-col items-center justify-center text-white text-2xl p-4">
+          <p className="flex items-center justify-center text-center">
+            You need to access this mini app from inside a farcaster client
+          </p>
+          <div
+            className="flex items-center justify-center text-center bg-indigo-800 p-3 rounded-lg mt-4 cursor-pointer"
+            onClick={() =>
+              window.open(
+                "https://farcaster.xyz/miniapps/p87J0-BQ3G9D/anonpost",
+                "_blank"
+              )
+            }
+          >
+            Open in Farcaster
+          </div>
+        </div>
+      </div>
+    );
+
+  if (!isConnected) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full">
+        <Connect />
+      </div>
+    );
+  }
+
+  if (userBalance < 69000) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#16101e] text-gray-100 p-6 text-center select-none">
+        <Lock size={64} className="text-red-400 mb-6" />
+        <h1 className="text-3xl font-semibold mb-3">Access Restricted</h1>
+        <p className="text-gray-400 mb-6">
+          You need at least{" "}
+          <span className="text-lime-400 font-semibold">x amount of </span>{" "}
+          <span className="text-sky-500 font-semibold">x token</span> to
+          post on @anonpost.eth
+        </p>
+
+        <p className="text-gray-400 mb-6 hidden">
+          You currently have{" "}
+          <span className="text-red-400 font-semibold">
+            {userBalance.toFixed(2)}{" "}
+          </span>
+          <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
+        </p>
+
+        <button
+          onClick={() =>
+            sdk.actions.swapToken({
+              sellToken:
+                "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
+            })
+          }
+          className="hidden items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-1.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
+        >
+          <Wallet2 className="w-4 h-4" />
+          Buy ${TOKEN_NAME}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-2">
       <div
@@ -421,37 +504,7 @@ export default function CastComposer() {
         className={`fixed bottom-4 transition-opacity duration-500 ease-in-out ${
           isTyping ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
-      >
-        <button
-          onClick={
-            context
-              ? () => sdk.actions.openUrl(`${process.env.NEXT_PUBLIC_URL}`)
-              : () => window.open("https://farcaster.xyz/miniapps/p87J0-BQ3G9D/anonpost", "_blank")
-          }
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-white transition-all duration-300 border shadow-md
-          ${
-            context
-              ? "bg-blue-500/20 border-blue-400/40 hover:bg-blue-500/30 hover:shadow-blue-500/30"
-              : "bg-purple-500/20 border-purple-400/40 hover:bg-purple-500/30 hover:shadow-purple-500/30"
-          }`}
-        >
-          {context ? (
-            <Globe className="w-4 h-4 text-blue-300" />
-          ) : (
-            <Image
-              src="/farcaster.png"
-              alt="Farcaster"
-              width={28}
-              height={28}
-              className="rounded-lg object-cover"
-            />
-          )}
-
-          <span className="text-sm">
-            {context ? "Open in Browser" : "Open in Farcaster"}
-          </span>
-        </button>
-      </div>
+      ></div>
     </div>
   );
 
@@ -540,21 +593,21 @@ export default function CastComposer() {
                   sdk.actions.swapToken({
                     sellToken:
                       "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-                    buyToken: "eip155:8453/erc20:CA",
+                    buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
                   })
               : () => window.open("https://dexscreener.com/base/CA", "_blank")
           }
           className="hidden items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-1.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
         >
           <Wallet2 className="w-4 h-4" />
-          Buy $AnonPost
+          Buy ${TOKEN_NAME}
         </button>
 
         {context ? (
           <button
             onClick={() =>
               sdk.actions.composeCast({
-                text: `Post anonymously, for free on @anonpost.eth via website(anonpost.xyz) or the miniapp below`,
+                text: `Post anonymously, on @anonpost.eth\n`,
                 embeds: [`${process.env.NEXT_PUBLIC_URL}`],
               })
             }

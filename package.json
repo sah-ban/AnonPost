@@ -11,13 +11,16 @@
   "dependencies": {
     "@farcaster/core": "^0.18.9",
     "@farcaster/miniapp-sdk": "^0.2.1",
+    "@farcaster/miniapp-wagmi-connector": "^1.1.0",
+    "@tanstack/react-query": "^5.90.8",
     "axios": "^1.7.9",
     "lucide-react": "^0.469.0",
     "next": "15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-farcaster-embed": "^1.11.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "wagmi": "^2.19.3"
   },
   "devDependencies": {
     "@types/node": "^20",
