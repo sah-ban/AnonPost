@@ -284,7 +284,7 @@ export default function CastComposer() {
     );
   }
 
-  if (userBalance < 69000) {
+  if (userBalance < 6900) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#16101e] text-gray-100 p-6 text-center select-none">
         <Lock size={64} className="text-red-400 mb-6" />
