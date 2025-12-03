@@ -5,14 +5,15 @@ import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
 import sdk, { type Context } from "@farcaster/miniapp-sdk";
-import { Share2, Wallet2, Copy, Check, Lock } from "lucide-react";
+import { Share2, Wallet2, Copy, Check } from "lucide-react";
+// import { Share2, Wallet2, Copy, Check, Lock } from "lucide-react";
 import Image from "next/image";
 import { FarcasterEmbed } from "react-farcaster-embed/dist/client";
 import "react-farcaster-embed/dist/styles.css";
-import { useAccount, useBalance } from "wagmi";
-import { base } from "viem/chains";
-import { formatUnits } from "viem";
-import Connect from "./Connect";
+// import { useAccount, useBalance } from "wagmi";
+// import { base } from "viem/chains";
+// import { formatUnits } from "viem";
+// import Connect from "./Connect";
 
 type CastType = "cast" | "reply" | "quote";
 
@@ -242,84 +243,84 @@ export default function CastComposer() {
     }
   }, [context, context?.client.added, result.hash]);
 
-  const { isConnected, address } = useAccount();
+  // const { isConnected, address } = useAccount();
   const TOKEN_ADDRESS = "0x4ed4e862860bed51a9570b96d89af5e1b0efefed" as const;
   const TOKEN_NAME = "DEGEN";
 
-  const { data: balance } = useBalance({
-    address,
-    token: TOKEN_ADDRESS,
-    chainId: base.id,
-  });
+  // const { data: balance } = useBalance({
+  //   address,
+  //   token: TOKEN_ADDRESS,
+  //   chainId: base.id,
+  // });
 
-  const userBalance = balance ? Number(formatUnits(balance.value, 18)) : 0;
+  // const userBalance = balance ? Number(formatUnits(balance.value, 18)) : 0;
 
-  if (!context)
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-900">
-        <div className="flex flex-col items-center justify-center text-white text-2xl p-4">
-          <p className="flex items-center justify-center text-center">
-            You need to access this mini app from inside a farcaster client
-          </p>
-          <div
-            className="flex items-center justify-center text-center bg-indigo-800 p-3 rounded-lg mt-4 cursor-pointer"
-            onClick={() =>
-              window.open(
-                "https://farcaster.xyz/miniapps/p87J0-BQ3G9D/anonpost",
-                "_blank"
-              )
-            }
-          >
-            Open in Farcaster
-          </div>
-        </div>
-      </div>
-    );
+  // if (!context)
+  //   return (
+  //     <div className="flex items-center justify-center h-screen bg-gray-900">
+  //       <div className="flex flex-col items-center justify-center text-white text-2xl p-4">
+  //         <p className="flex items-center justify-center text-center">
+  //           You need to access this mini app from inside a farcaster client
+  //         </p>
+  //         <div
+  //           className="flex items-center justify-center text-center bg-indigo-800 p-3 rounded-lg mt-4 cursor-pointer"
+  //           onClick={() =>
+  //             window.open(
+  //               "https://farcaster.xyz/miniapps/p87J0-BQ3G9D/anonpost",
+  //               "_blank"
+  //             )
+  //           }
+  //         >
+  //           Open in Farcaster
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
 
-  if (!isConnected) {
-    return (
-      <div className="flex items-center justify-center h-screen w-full">
-        <Connect />
-      </div>
-    );
-  }
+  // if (!isConnected) {
+  //   return (
+  //     <div className="flex items-center justify-center h-screen w-full">
+  //       <Connect />
+  //     </div>
+  //   );
+  // }
 
-  if (userBalance < 6900) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#16101e] text-gray-100 p-6 text-center select-none">
-        <Lock size={64} className="text-red-400 mb-6" />
-        <h1 className="text-3xl font-semibold mb-3">Access Restricted</h1>
-        <p className="text-gray-400 mb-6">
-          You need at least{" "}
-          <span className="text-lime-400 font-semibold">x amount of </span>{" "}
-          <span className="text-sky-500 font-semibold">x token</span> to
-          post on @anonpost.eth
-        </p>
+  // if (userBalance < 6900) {
+  //   return (
+  //     <div className="flex flex-col items-center justify-center min-h-screen bg-[#16101e] text-gray-100 p-6 text-center select-none">
+  //       <Lock size={64} className="text-red-400 mb-6" />
+  //       <h1 className="text-3xl font-semibold mb-3">Access Restricted</h1>
+  //       <p className="text-gray-400 mb-6">
+  //         You need at least{" "}
+  //         <span className="text-lime-400 font-semibold">x amount of </span>{" "}
+  //         <span className="text-sky-500 font-semibold">x token</span> to
+  //         post on @anonpost.eth
+  //       </p>
 
-        <p className="text-gray-400 mb-6 hidden">
-          You currently have{" "}
-          <span className="text-red-400 font-semibold">
-            {userBalance.toFixed(2)}{" "}
-          </span>
-          <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
-        </p>
+  //       <p className="text-gray-400 mb-6 hidden">
+  //         You currently have{" "}
+  //         <span className="text-red-400 font-semibold">
+  //           {userBalance.toFixed(2)}{" "}
+  //         </span>
+  //         <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
+  //       </p>
 
-        <button
-          onClick={() =>
-            sdk.actions.swapToken({
-              sellToken:
-                "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-              buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
-            })
-          }
-          className="hidden items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-1.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
-        >
-          <Wallet2 className="w-4 h-4" />
-          Buy ${TOKEN_NAME}
-        </button>
-      </div>
-    );
-  }
+  //       <button
+  //         onClick={() =>
+  //           sdk.actions.swapToken({
+  //             sellToken:
+  //               "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  //             buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
+  //           })
+  //         }
+  //         className="hidden items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-1.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
+  //       >
+  //         <Wallet2 className="w-4 h-4" />
+  //         Buy ${TOKEN_NAME}
+  //       </button>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-2">
