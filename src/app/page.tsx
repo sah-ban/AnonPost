@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "AnonPost",
     openGraph: {
       title: "AnonPost",
-      description: "Post anonymously, for free on Farcaster",
+      description: "Post anonymously on Farcaster",
       images: [
         {
           url: `${appUrl}/og.png`,
@@ -43,7 +43,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function Home() {
   return (
-    <div className="min-h-screen w-full bg-slate-800">
+    <div className="min-h-screen w-full">
       <App />
     </div>
   );
