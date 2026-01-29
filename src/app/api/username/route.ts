@@ -3,7 +3,6 @@ import axios from "axios";
 
 export async function GET(req: NextRequest) {
   const fid = req.nextUrl.searchParams.get("fid");
-  console.log(`Requested fid: ${fid}`);
 
   try {
     const apiUrl = `https://api.farcaster.xyz/v2/user?fid=${fid}`;
@@ -18,7 +17,7 @@ export async function GET(req: NextRequest) {
     console.error("Unexpected error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
