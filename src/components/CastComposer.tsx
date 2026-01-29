@@ -405,7 +405,7 @@ export default function CastComposer() {
           <p className="text-gray-400 mb-6">
             You currently have{" "}
             <span className="text-red-400 font-semibold">
-              {userBalance.toFixed(2)}{" "}
+              {userBalance.toLocaleString()}{" "}
             </span>
             <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
           </p>
@@ -726,7 +726,7 @@ function ComposerHeader({
         className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-lime-500/10 border border-white/10 hover:border-lime-400/30 px-3 py-1.5 rounded-lg transition-all group"
       >
         <span className="text-lime-400 font-medium text-xs">
-          {userBalance.toFixed(2)}
+          {userBalance.toLocaleString()}
         </span>
         <span className="text-sky-400 text-xs">${TOKEN_NAME}</span>
         <span className="text-gray-500">|</span>
