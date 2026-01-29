@@ -3,9 +3,11 @@ export async function GET() {
 
   const config = {
     accountAssociation: {
-      header: "eyJmaWQiOjI2ODQzOCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDIxODA4RUUzMjBlREY2NGMwMTlBNmJiMEY3RTRiRkIzZDYyRjA2RWMifQ",
+      header:
+        "eyJmaWQiOjI2ODQzOCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDIxODA4RUUzMjBlREY2NGMwMTlBNmJiMEY3RTRiRkIzZDYyRjA2RWMifQ",
       payload: "eyJkb21haW4iOiJhbm9ucG9zdC54eXoifQ",
-      signature: "GDTp59IbrapnfHRruEWCTpy/UkIaL5eMOfmdGhyOplsTxuVJv2S6oJf453IpuVKOdXtx8HQdk9LuxokFDBRENxw=",
+      signature:
+        "GDTp59IbrapnfHRruEWCTpy/UkIaL5eMOfmdGhyOplsTxuVJv2S6oJf453IpuVKOdXtx8HQdk9LuxokFDBRENxw=",
     },
     frame: {
       version: "1",
@@ -17,15 +19,15 @@ export async function GET() {
       splashImageUrl: `${appUrl}/splash.png`,
       splashBackgroundColor: "#000000",
       castShareUrl: appUrl,
-      subtitle: "Post anonymously, for free",
-      description: "Post anonymously, for free",
+      subtitle: "Post anonymously",
+      description: "Post anonymously on Farcaster",
       primaryCategory: "social",
       ogImageUrl: `${appUrl}/og.png`,
       tags: ["anon", "post", "anoncast", "anonpost", "anononymous"],
       heroImageUrl: `${appUrl}/og.png`,
-      tagline: "Post anonymously, for free",
-      ogTitle: "Post anonymously, for free",
-      ogDescription: "Post anonymously, for free",
+      tagline: "Post anonymously on Farcaster",
+      ogTitle: "Post anonymously on Farcaster",
+      ogDescription: "Post anonymously on Farcaster",
       baseBuilder: {
         allowedAddresses: ["0x06e5B0fd556e8dF43BC45f8343945Fb12C6C3E90"],
       },
