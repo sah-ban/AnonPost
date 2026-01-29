@@ -1,202 +1,102 @@
-# 🪶 AnonPost - Post anonymously on Farcaster
+# AnonPost
 
-**AnonPost** is a lightweight, privacy-friendly **miniapp/webpage** built with **Next.js 14 (App Router)** and **TypeScript**, designed to create, reply to, or quote Farcaster casts **anonymously and for free**.
+A Farcaster miniapp/webapp that lets users post anonymously on the Farcaster Protocol. Built with Next.js 15 and the Farcaster SDK.
 
-It integrates with the **Farcaster MiniApp SDK** and supports:
+![AnonPost](public/og.png)
 
-- 📝 Text casts
-- 🌐 Link embeds (up to 2 per post)
-- 🖼️ Image uploads
-- 💬 Quote / Reply support
-- 💜 Mentions with auto-FID resolution
-- ⚡ Live character + attachment counters
-- 📱 Farcaster-native actions for miniapp
+## ✨ Features
 
----
+- **Anonymous Posting** - Cast to Farcaster without revealing your identity
+- **Token-Gated Access** - Requires minimum $AnonPost tokens to post (anti-spam measure)
+- **Multiple Cast Types** - Support for regular casts, replies, and quote casts
+- **Image Uploads** - Attach images to your anonymous posts
+- **@ Mentions** - Tag other Farcaster users in your casts
+- **Wallet Integration** - Connect via Farcaster miniapp wallet connector when using miniapp and Metamask or any other wallet when using webapp
+- **Cooldown System** - 60-second cooldown between posts to prevent spam
+- **Real-time Balance Check** - View your token balance before posting
 
-## 🚀 Features
+## 🛠️ Tech Stack
 
-✅ **Three Cast Types**
+- **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
+- **Farcaster SDK**: [@farcaster/miniapp-sdk](https://www.npmjs.com/package/@farcaster/miniapp-sdk)
+- **Blockchain**: [@farcaster/core](https://www.npmjs.com/package/@farcaster/core)
+- **Wallet**: [wagmi](https://wagmi.sh/) + Farcaster miniapp connector
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **State Management**: [TanStack Query](https://tanstack.com/query)
 
-- **Cast** — Standard standalone post
-- **Reply** — Reply to another user’s cast
-- **Quote** — Quote a cast while adding your own text
+## 📦 Installation
 
-✅ **Embed Support**
+1. **Clone the repository**
 
-- Up to **2 embeds max** per cast (link, image, or quoted cast)
-- Auto-handling of embed order (image → URL1 → URL2 → cast)
+   ```bash
+   git clone https://github.com/sah-ban/AnonPost.git
+   cd AnonPost
+   ```
 
-✅ **Mentions**
+2. **Install dependencies**
 
-- Type `@username` or `@username.eth` in your text — the API resolves FIDs automatically
-- Invalid usernames return a readable error
+   ```bash
+   yarn install
+   ```
 
-✅ **Auto UI Enhancements**
+3. **Set up environment variables**
 
-- Character + embed counters with color indicators
-- Fade-out header while typing
-- Responsive layout with TailwindCSS
-- Auto-reset after successful submission
+   Copy the example env file and fill in the values:
 
-✅ **Farcaster Integration**
+   ```bash
+   cp .env.example .env
+   ```
 
-- Works with **MiniApp SDK** for in-app interactions (`viewProfile`, `viewCast`, etc.)
-- Uses the **Farcaster Hub API** for posting messages
+   | Variable                | Description                            |
+   | ----------------------- | -------------------------------------- |
+   | `NEXT_PUBLIC_URL`       | Your app's public URL                  |
+   | `PRIVATE_KEY`           | Ed25519 signer private key for casting |
+   | `NEXT_PUBLIC_IMGBB_KEY` | imgBB API key for image uploads        |
+   | `HUB_URL`               | Farcaster Hub URL for submitting casts |
 
----
+4. **Run the development server**
 
-## 🧱 Tech Stack
+   ```bash
+   yarn dev
+   ```
 
-| Category          | Tools                                                                          |
-| ----------------- | ------------------------------------------------------------------------------ |
-| **Framework**     | [Next.js 14 (App Router)](https://nextjs.org/)                                 |
-| **Language**      | TypeScript                                                                     |
-| **Styling**       | Tailwind CSS                                                                   |
-| **Blockchain**    | [@farcaster/core](https://www.npmjs.com/package/@farcaster/core)               |
-| **MiniApp SDK**   | [@farcaster/miniapp-sdk](https://www.npmjs.com/package/@farcaster/miniapp-sdk) |
-| **Embeds**        | [react-farcaster-embed](https://www.npmjs.com/package/react-farcaster-embed)   |
-| **Image Hosting** | [ImgBB API](https://api.imgbb.com/)                                            |
-| **UI Icons**      | [Lucide React](https://lucide.dev/)                                            |
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
 
----
+## 🚀 Usage
 
-## ⚙️ Project Structure
+1. Open in browser or miniapp
+2. Connect your wallet
+3. Ensure you have enough **$AnonPost** token
+4. Write your anonymous cast
+5. Optionally add images or reply/quote other casts
+6. Hit publish!
 
-```
-
-project/
-├─ src/
-│  ├─ app/
-│  │  ├─ api/
-│  │  │  ├─ create-cast/route.ts               # API route to create/submit cast
-│  │  │  ├─ username/route.ts                  # Helper to fetch username by FID
-│  │  │  ├─ send-notifications/route.ts        # API route to send notifications on farcaster
-│  │  ├─ .well-known/farcaster.json/route.ts   # Manifest for miniapp
-│  │  ├─ page.tsx                              # App entrypoint
-│  ├─ components/
-│  │  └─ CastComposer.tsx                      # Main UI component
-├─ public/
-│  ├─ icon.png
-│  ├─ og.png
-│  ├─ splash.png
-│  └─ farcaster.png
-├─ .env                                        # Environment variables
-├─ package.json
-├─ tailwind.config.js
-├─ next.config.js
-└─ README.md
-```
----
-
-## 🔧 Environment Variables
-
-Rename a `.env.example` to `.env` in your root directory and fill in the following:
-
-```bash
-
-# Public site URL
-NEXT_PUBLIC_URL=
-
-# Private Farcaster signer key (hex string without 0x)
-PRIVATE_KEY=your_ed25519_private_key_here
-
-# Hub URL
-HUB_URL=snapchain hub url
-
-# Public image upload key from ImgBB
-NEXT_PUBLIC_IMGBB_KEY=your_imgbb_api_key
+## 📁 Project Structure
 
 ```
-
-> ⚠️ Make sure the `PRIVATE_KEY` **does not start with `0x`**.  
-> Example: `KEY=f9a21b...` (not `0xf9a21b...`)
-
----
-
-## 🧩 API Endpoints
-
-### `POST /api/create-cast`
-
-Creates a new cast, reply, or quote.
-
----
-
-### `GET /api/username?fid=<fid>`
-
-Fetches a user’s Farcaster username for display.
-
----
-
-## 🧠 Logic Overview
-
-### 🏗️ Cast Creation Flow
-
-1. Client builds `CastAddBody` dynamically based on:
-   - `text` (optional)
-   - `embeds` (up to 2)
-   - `castType` (cast/reply/quote)
-   - `parentCastId` (if reply)
-2. Server signs and serializes it using `NobleEd25519Signer`
-3. Cast message is sent to hub
-4. Returns the hash of the successfully created cast
-
----
-
-## 🧪 Development
-
-**Install dependencies**
-
-```bash
-yarn install
+src/
+├── app/
+│   ├── api/
+│   │   ├── create-cast/    # API route for creating casts
+│   ├── .well-known/        # Farcaster miniapp manifest
+│   ├── page.tsx            # Main page with Frame metadata
+│   ├── layout.tsx          # Root layout
+│   └── providers.tsx       # React Query + Wagmi providers
+├── components/
+│   ├── CastComposer.tsx    # Main composer component
+│   └── providers/          # Wagmi provider configuration
 ```
-
-**Run locally**
-
-```bash
-yarn dev
-```
-
-**Build for production**
-
-```bash
-yarn build
-```
-
-**Run production build**
-
-```bash
-yarn start
-```
-
-Visit: [http://localhost:3000](http://localhost:3000)
-
----
-
-## ☁️ Deployment
-
-**Recommended:** [Vercel](https://vercel.com/)
-
-1. Push your project to GitHub
-2. Import into Vercel
-3. Add all required environment variables
-4. Deploy 🚀
-
----
-
-## 🧑‍💻 Author
-
-**[@cashlessman.eth](https://farcaster.xyz/cshlessman.eth)**  
-Built for **Farcaster**
-
-> “Post anonymously, for free.”
-
----
 
 ## 📜 License
 
 Licensed under the **Apache License 2.0**  
-Copyright © 2025 AnonPost
+Copyright © 2026 AnonPost
 
 You may not use this project except in compliance with the License.  
 You may obtain a copy of the License at: [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+## 👨‍💻 Developer
+
+**[@cashlessman.eth](https://farcaster.xyz/cashlessman.eth)**  
+Built for **Farcaster**
