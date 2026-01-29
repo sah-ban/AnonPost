@@ -1,19 +1,30 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-
 import { useSearchParams } from "next/navigation";
-
 import sdk, { type Context } from "@farcaster/miniapp-sdk";
-import { Share2, Wallet2, Copy, Check } from "lucide-react";
-// import { Share2, Wallet2, Copy, Check, Lock } from "lucide-react";
+import {
+  Share2,
+  Wallet2,
+  Copy,
+  Check,
+  Lock,
+  LogOut,
+  ExternalLink,
+} from "lucide-react";
 import Image from "next/image";
 import { FarcasterEmbed } from "react-farcaster-embed/dist/client";
 import "react-farcaster-embed/dist/styles.css";
-// import { useAccount, useBalance } from "wagmi";
-// import { base } from "viem/chains";
-// import { formatUnits } from "viem";
-// import Connect from "./Connect";
+import { useAccount, useBalance, useDisconnect } from "wagmi";
+import { base } from "viem/chains";
+import { formatUnits } from "viem";
+import { useConnect } from "wagmi";
+import { config } from "./providers/WagmiProvider";
+
+const TOKEN_ADDRESS = "0x4ed4e862860bed51a9570b96d89af5e1b0efefed" as const;// DEGEN for now
+const TOKEN_NAME = "AnonPost";
+const REQUIRED_TOKEN_AMOUNT = 69000;
+const COOLDOWN_SECONDS = 60;
 
 type CastType = "cast" | "reply" | "quote";
 
@@ -44,9 +55,7 @@ interface CastResult {
 
 export default function CastComposer() {
   const [context, setContext] = useState<Context.MiniAppContext>();
-
   const [showPopup, setShowPopup] = useState(false);
-
   const [castType, setCastType] = useState<CastType>("cast");
   const [text, setText] = useState("");
   const [embedUrl1, setEmbedUrl1] = useState("");
@@ -63,7 +72,23 @@ export default function CastComposer() {
   const [embeds, setEmbeds] = useState<EmbedInput[]>([]);
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [username, setUsername] = useState<string>();
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
+  // Wagmi hooks
+  const { isConnected, address } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { connect } = useConnect();
+
+  const { data: balance } = useBalance({
+    address,
+    token: TOKEN_ADDRESS,
+    chainId: base.id,
+  });
+
+  const userBalance = balance ? Number(formatUnits(balance.value, 18)) : 0;
+
+  // Initialize Farcaster SDK
   useEffect(() => {
     const load = async () => {
       setContext(await sdk.context);
@@ -75,10 +100,10 @@ export default function CastComposer() {
     }
   }, [isSDKLoaded]);
 
+  // Handle embeds
   useEffect(() => {
     const possibleEmbeds: EmbedInput[] = [];
 
-    // Collect embeds in first-come-first-serve order
     if (imageUrl.trim()) possibleEmbeds.push({ url: imageUrl.trim() });
     if (embedUrl1.trim()) possibleEmbeds.push({ url: embedUrl1.trim() });
     if (embedUrl2.trim()) possibleEmbeds.push({ url: embedUrl2.trim() });
@@ -88,19 +113,18 @@ export default function CastComposer() {
       });
     }
 
-    // Warn if more than 2 embeds
     if (possibleEmbeds.length > 2) {
       setWarning(
-        "You can only include up to 2 attachments (links, casts, or images).\n Please remove one link"
+        "You can only include up to 2 attachments (links, casts, or images).\n Please remove one",
       );
     } else {
       setWarning("");
     }
 
-    // Always store only up to 2 embeds
     setEmbeds(possibleEmbeds.slice(0, 2));
   }, [imageUrl, embedUrl1, embedUrl2, castIdFid, castIdHash, castType]);
 
+  // Handle form submission
   const handleSubmit = async () => {
     setWarning("");
     setLoading(true);
@@ -137,8 +161,8 @@ export default function CastComposer() {
       setLoading(false);
     }
   };
-  const [username, setUsername] = useState<string>();
 
+  // Fetch username for reply/quote
   async function fetchUsername(fid: string) {
     try {
       const res = await fetch(`/api/username?fid=${fid}`);
@@ -169,11 +193,12 @@ export default function CastComposer() {
 
   useEffect(() => {
     if (textRef.current) {
-      textRef.current.style.height = "auto"; // Reset height
-      textRef.current.style.height = `${textRef.current.scrollHeight}px`; // Adjust height
+      textRef.current.style.height = "auto";
+      textRef.current.style.height = `${textRef.current.scrollHeight}px`;
     }
   }, [text]);
 
+  // Handle image upload
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const image = e.target.files[0];
@@ -194,7 +219,7 @@ export default function CastComposer() {
         {
           method: "POST",
           body: formData,
-        }
+        },
       );
 
       const data: {
@@ -207,7 +232,7 @@ export default function CastComposer() {
         setImageUrl(data.data.url);
       } else {
         setWarning(
-          "Upload failed: " + (data.error?.message || "Unknown error")
+          "Upload failed: " + (data.error?.message || "Unknown error"),
         );
       }
     } catch (error) {
@@ -216,6 +241,7 @@ export default function CastComposer() {
     }
   };
 
+  // Reset form on successful post and start cooldown
   useEffect(() => {
     if (result.hash) {
       setCastType("cast");
@@ -230,6 +256,9 @@ export default function CastComposer() {
       setWarning("");
       sdk.haptics.notificationOccurred("success");
 
+      // Start cooldown timer
+      setCooldownRemaining(COOLDOWN_SECONDS);
+
       const timer = setTimeout(() => {
         setResult({});
       }, 7000);
@@ -237,90 +266,175 @@ export default function CastComposer() {
     }
   }, [result.hash]);
 
+  // Cooldown countdown effect
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setCooldownRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [cooldownRemaining]);
+
+  // Prompt to add mini app
   useEffect(() => {
     if (context && !context?.client.added && result.hash) {
       sdk.actions.addMiniApp();
     }
   }, [context, context?.client.added, result.hash]);
 
-  // const { isConnected, address } = useAccount();
-  const TOKEN_ADDRESS = "0x4ed4e862860bed51a9570b96d89af5e1b0efefed" as const;
-  const TOKEN_NAME = "DEGEN";
+  // Handle wallet connection
+  const handleConnect = () => {
+    if (context) {
+      connect({ connector: config.connectors[0] });
+    } else {
+      connect({ connector: config.connectors[1] });
+    }
+  };
 
-  // const { data: balance } = useBalance({
-  //   address,
-  //   token: TOKEN_ADDRESS,
-  //   chainId: base.id,
-  // });
+  // Truncate address for display
+  const truncateAddress = (addr: string) => {
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
 
-  // const userBalance = balance ? Number(formatUnits(balance.value, 18)) : 0;
+  if (!isConnected) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-4">
+        <div className="flex flex-col items-center justify-center flex-1">
+          {/* Logo */}
+          <div className="relative w-24 h-24 mb-6">
+            <Image
+              src="/icon.png"
+              alt="AnonPost"
+              fill
+              sizes="96px"
+              className="rounded-full border-2 border-lime-400/40 object-cover shadow-lg shadow-lime-500/20"
+              priority
+            />
+          </div>
 
-  // if (!context)
-  //   return (
-  //     <div className="flex items-center justify-center h-screen bg-gray-900">
-  //       <div className="flex flex-col items-center justify-center text-white text-2xl p-4">
-  //         <p className="flex items-center justify-center text-center">
-  //           You need to access this mini app from inside a farcaster client
-  //         </p>
-  //         <div
-  //           className="flex items-center justify-center text-center bg-indigo-800 p-3 rounded-lg mt-4 cursor-pointer"
-  //           onClick={() =>
-  //             window.open(
-  //               "https://farcaster.xyz/miniapps/p87J0-BQ3G9D/anonpost",
-  //               "_blank"
-  //             )
-  //           }
-  //         >
-  //           Open in Farcaster
-  //         </div>
-  //       </div>
-  //     </div>
-  //   );
+          {/* App Name */}
+          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-lime-400 to-emerald-400 bg-clip-text text-transparent">
+            AnonPost
+          </h1>
 
-  // if (!isConnected) {
-  //   return (
-  //     <div className="flex items-center justify-center h-screen w-full">
-  //       <Connect />
-  //     </div>
-  //   );
-  // }
+          {/* Description */}
+          <p className="text-gray-400 text-center mb-8 max-w-xs">
+            Post anonymously on Farcaster. Your identity stays hidden, your
+            voice gets heard.
+          </p>
 
-  // if (userBalance < 6900) {
-  //   return (
-  //     <div className="flex flex-col items-center justify-center min-h-screen bg-[#16101e] text-gray-100 p-6 text-center select-none">
-  //       <Lock size={64} className="text-red-400 mb-6" />
-  //       <h1 className="text-3xl font-semibold mb-3">Access Restricted</h1>
-  //       <p className="text-gray-400 mb-6">
-  //         You need at least{" "}
-  //         <span className="text-lime-400 font-semibold">x amount of </span>{" "}
-  //         <span className="text-sky-500 font-semibold">x token</span> to
-  //         post on @anonpost.eth
-  //       </p>
+          {/* Connect Button */}
+          <button
+            onClick={handleConnect}
+            className="flex items-center gap-3 bg-gradient-to-r from-lime-500 to-emerald-500 text-black font-semibold px-8 py-3 rounded-xl shadow-lg shadow-lime-500/30 hover:shadow-lime-500/50 hover:scale-105 transition-all duration-200"
+          >
+            <Wallet2 className="w-5 h-5" />
+            Connect Wallet
+          </button>
 
-  //       <p className="text-gray-400 mb-6 hidden">
-  //         You currently have{" "}
-  //         <span className="text-red-400 font-semibold">
-  //           {userBalance.toFixed(2)}{" "}
-  //         </span>
-  //         <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
-  //       </p>
+          {/* Token requirement notice */}
+          <p className="text-gray-500 text-sm mt-6 text-center">
+            Requires{" "}
+            <span className="text-lime-400 font-medium">
+              {REQUIRED_TOKEN_AMOUNT.toLocaleString()}
+            </span>{" "}
+            <span className="text-sky-400">${TOKEN_NAME}</span> on Base to post
+          </p>
+        </div>
 
-  //       <button
-  //         onClick={() =>
-  //           sdk.actions.swapToken({
-  //             sellToken:
-  //               "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  //             buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
-  //           })
-  //         }
-  //         className="hidden items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-1.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
-  //       >
-  //         <Wallet2 className="w-4 h-4" />
-  //         Buy ${TOKEN_NAME}
-  //       </button>
-  //     </div>
-  //   );
-  // }
+        {/* Footer */}
+        <ComposerFooter />
+      </div>
+    );
+  }
+
+  if (userBalance < REQUIRED_TOKEN_AMOUNT) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-gray-100 p-6 text-center select-none">
+        {/* Header */}
+        <div className="fixed top-0 left-0 w-full z-50 px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="relative w-8 h-8">
+              <Image
+                src="/icon.png"
+                alt="AnonPost"
+                fill
+                sizes="32px"
+                className="rounded-full border border-white/20 object-cover"
+                priority
+              />
+            </div>
+            <span className="text-sm font-medium text-gray-300">AnonPost</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+              {truncateAddress(address || "")}
+            </span>
+            <button
+              onClick={() => disconnect()}
+              className="p-2 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all"
+              title="Disconnect wallet"
+            >
+              <LogOut className="w-4 h-4 text-red-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <Lock size={64} className="text-red-400 mb-6" />
+          <h1 className="text-3xl font-semibold mb-3">Access Restricted</h1>
+          <p className="text-gray-400 mb-6">
+            You need at least{" "}
+            <span className="text-lime-400 font-semibold">
+              {REQUIRED_TOKEN_AMOUNT.toLocaleString()}
+            </span>{" "}
+            <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span> to
+            post on @anonpost.eth
+          </p>
+
+          <p className="text-gray-400 mb-6">
+            You currently have{" "}
+            <span className="text-red-400 font-semibold">
+              {userBalance.toFixed(2)}{" "}
+            </span>
+            <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
+          </p>
+
+          <button
+            onClick={() =>
+              context
+                ? sdk.actions.swapToken({
+                    sellToken:
+                      "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
+                  })
+                : window.open(
+                    `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
+                    "_blank",
+                  )
+            }
+            className="flex items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-6 py-2.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
+          >
+            <Wallet2 className="w-4 h-4" />
+            Buy ${TOKEN_NAME}
+          </button>
+        </div>
+
+        {/* Footer */}
+        <ComposerFooter />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-2">
@@ -329,16 +443,28 @@ export default function CastComposer() {
           isTyping ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
       >
-        <ComposerHeader />
+        <ComposerHeader
+          context={context}
+          address={address}
+          disconnect={disconnect}
+          truncateAddress={truncateAddress}
+          userBalance={userBalance}
+        />
       </div>
-      <QuoteOrReply />{" "}
+
+      <QuoteOrReply
+        showPopup={showPopup}
+        setShowPopup={setShowPopup}
+        setCastType={setCastType}
+      />
+
       <div className="w-full max-w-lg bg-[#111418]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl p-3 space-y-1 transition-transform hover:scale-[1.01] hover:border-lime-400/40">
         {castHash &&
           username &&
           (castType === "reply" || castType === "quote") && (
             <>
               {castType === "reply" ? "Replying to " : "Quoting "}@{username}
-              <div className="bg-[#192734] text-white rounded-2xl shadow-lg max-w-xl w-full border border-[#2F3336]">
+              <div className="bg-[#101110] text-white rounded-2xl shadow-lg max-w-xl w-full border border-[#2F3336] text-sm">
                 <FarcasterEmbed
                   username={username}
                   hash={castHash}
@@ -346,13 +472,15 @@ export default function CastComposer() {
                 />
               </div>
             </>
-          )}{" "}
+          )}
+
+        {/* Text Input */}
         <div>
           <label className="block text-sm font-medium mb-1">Text</label>
           <textarea
             ref={textRef}
             className="w-full p-3 bg-[#525760] text-white rounded-lg border border-gray-700 focus:outline-none focus:ring-1 focus:ring-lime-500 resize-none"
-            placeholder="Start writing..."
+            placeholder="Write something without a trace..."
             maxLength={maxChars}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -361,6 +489,7 @@ export default function CastComposer() {
             style={{ whiteSpace: "pre-wrap" }}
           ></textarea>
         </div>
+
         {/* Embed URLs */}
         <div>
           <label className="block text-sm font-medium mb-1">URLs</label>
@@ -375,7 +504,6 @@ export default function CastComposer() {
                 : ""
             }`}
           />
-
           <input
             value={embedUrl2}
             onChange={(e) => setEmbedUrl2(e.target.value)}
@@ -388,7 +516,10 @@ export default function CastComposer() {
             }`}
           />
         </div>
+
+        {/* Action Bar */}
         <div className="flex items-center justify-between mt-2 gap-4">
+          {/* Image Upload */}
           <label className="cursor-pointer flex items-center gap-2">
             {imageUrl ? (
               <svg
@@ -452,10 +583,12 @@ export default function CastComposer() {
             </span>
           </div>
 
+          {/* Post Button with Cooldown */}
           <button
             onClick={handleSubmit}
             disabled={
               loading ||
+              cooldownRemaining > 0 ||
               (text.trim().length === 0 &&
                 !embedUrl1 &&
                 !embedUrl2 &&
@@ -464,9 +597,16 @@ export default function CastComposer() {
             }
             className="bg-gray-700 hover:bg-lime-600 text-white px-4 py-2 rounded-md transition disabled:opacity-50 w-[200px] disabled:cursor-not-allowed"
           >
-            {loading ? "Posting..." : result.hash ? "Posted" : "Post"}
+            {loading
+              ? "Posting..."
+              : cooldownRemaining > 0
+                ? `Wait ${cooldownRemaining}s`
+                : result.hash
+                  ? "Posted"
+                  : "Post"}
           </button>
         </div>
+
         {/* Warning */}
         {warning && (
           <div
@@ -476,134 +616,143 @@ export default function CastComposer() {
             ⚠️ {warning}
           </div>
         )}
+
+        {/* Success Message */}
         {result.hash && (
           <div
             className="mt-3 rounded-xl border border-green-500/40 bg-green-500/10 p-3 text-green-300 font-medium flex justify-center gap-2 text-center cursor-pointer"
             onClick={
               context
-                ? () =>
-                    sdk.actions.viewCast({
-                      hash: result.hash!,
-                    })
+                ? () => sdk.actions.viewProfile({ fid: 1009125 })
                 : () =>
-                    window.open(
-                      `https://farcaster.xyz/~/conversations/${result.hash}`,
-                      "_blank"
-                    )
+                    window.open("https://farcaster.xyz/anonpost.eth", "_blank")
             }
           >
             Posted, click here to view
           </div>
         )}
+
+        {/* Error Message */}
         {result.error && (
           <div className="mt-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-red-400 font-medium flex justify-center items-center gap-2 text-center">
             ❌ {result.error}
           </div>
         )}
-      </div>{" "}
+      </div>
+
+      {/* Footer */}
       <div
-        className={`fixed bottom-4 transition-opacity duration-500 ease-in-out ${
+        className={`transition-opacity duration-500 ease-in-out ${
           isTyping ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
-      ></div>
+      >
+        <ComposerFooter context={context} showMobileBuy={true} />
+      </div>
     </div>
   );
+}
 
-  function QuoteOrReply() {
-    const handleSelect = (choice: CastType) => {
-      setCastType(choice);
-      setShowPopup(false);
-    };
-    return (
-      <div className="text-white">
-        {showPopup && (
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-[#1a1a1a]/90 to-[#2a2a2a]/90 border border-white/20 shadow-[0_0_30px_rgba(0,0,0,0.6)] rounded-2xl p-8 w-[90%] max-w-sm text-white relative animate-[fadeIn_0.25s_ease-out]">
-              <button
-                onClick={() => setShowPopup(false)}
-                className="absolute top-3 right-3 text-gray-400 hover:text-white transition"
-              >
-                ✕
-              </button>
-              <h2 className="text-xl font-semibold text-center mb-6">
-                Choose an Action
-              </h2>
+interface ComposerHeaderProps {
+  context: Context.MiniAppContext | undefined;
+  address: `0x${string}` | undefined;
+  disconnect: () => void;
+  truncateAddress: (addr: string) => string;
+  userBalance: number;
+}
 
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => handleSelect("quote")}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-500 px-5 py-3 rounded-xl font-medium hover:scale-105 hover:shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all duration-200"
-                >
-                  Quote Cast
-                </button>
-                <button
-                  onClick={() => handleSelect("reply")}
-                  className="bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 rounded-xl font-medium hover:scale-105 hover:shadow-[0_0_15px_rgba(34,197,94,0.5)] transition-all duration-200"
-                >
-                  Reply
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+function ComposerHeader({
+  context,
+  address,
+  disconnect,
+  truncateAddress,
+  userBalance,
+}: ComposerHeaderProps) {
+  const [copied, setCopied] = useState(false);
 
-  function ComposerHeader() {
-    const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_URL}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
 
-    const handleCopy = async () => {
-      try {
-        await navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_URL}`);
-        setCopied(true);
+  const handleBuy = () => {
+    if (context) {
+      sdk.actions.swapToken({
+        sellToken:
+          "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
+      });
+    } else {
+      window.open(
+        `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
+        "_blank",
+      );
+    }
+  };
 
-        // reset after 2 seconds
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error("Failed to copy:", err);
-      }
-    };
-    return (
-      <div className="fixed top-0 left-0 w-full z-50 px-6 py-3 flex items-center justify-between">
-        <button
-          onClick={
-            context
-              ? () => sdk.actions.viewProfile({ fid: 1009125 })
-              : () =>
-                  window.open("https://farcaster.xyz/anonpost.eth", "_blank")
-          }
-          className="flex items-center gap-2 group"
-        >
-          <div className="relative w-10 h-10">
-            <Image
-              src="/icon.png"
-              alt="Profile"
-              fill
-              sizes="40px"
-              className="rounded-full border border-white/20 object-cover group-hover:border-lime-400/40 transition-all duration-200"
-              priority
-            />
-          </div>
-        </button>
+  return (
+    <div className="fixed top-0 left-0 w-full z-50 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-[#0f1115]/90 to-transparent backdrop-blur-sm">
+      {/* Left: Profile */}
+      <button
+        onClick={
+          context
+            ? () => sdk.actions.viewProfile({ fid: 1009125 })
+            : () => window.open("https://farcaster.xyz/anonpost.eth", "_blank")
+        }
+        className="flex items-center gap-2 group"
+      >
+        <div className="relative w-9 h-9">
+          <Image
+            src="/icon.png"
+            alt="Profile"
+            fill
+            sizes="36px"
+            className="rounded-full border border-white/20 object-cover group-hover:border-lime-400/40 transition-all duration-200"
+            priority
+          />
+        </div>
+        <span className="text-sm font-medium text-gray-300 group-hover:text-lime-400 transition-colors hidden sm:block">
+          AnonPost
+        </span>
+      </button>
 
-        <button
-          onClick={
-            context
-              ? () =>
-                  sdk.actions.swapToken({
-                    sellToken:
-                      "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-                    buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
-                  })
-              : () => window.open("https://dexscreener.com/base/CA", "_blank")
-          }
-          className="hidden items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-1.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
-        >
-          <Wallet2 className="w-4 h-4" />
-          Buy ${TOKEN_NAME}
-        </button>
+      {/* Center: Balance + Buy (combined) */}
+      <button
+        onClick={handleBuy}
+        className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-lime-500/10 border border-white/10 hover:border-lime-400/30 px-3 py-1.5 rounded-lg transition-all group"
+      >
+        <span className="text-lime-400 font-medium text-xs">
+          {userBalance.toFixed(2)}
+        </span>
+        <span className="text-sky-400 text-xs">${TOKEN_NAME}</span>
+        <span className="text-gray-500">|</span>
+        <span className="text-lime-300 text-xs font-medium group-hover:text-lime-200 flex items-center gap-1">
+          <Wallet2 className="w-3.5 h-3.5" />
+          Buy
+        </span>
+      </button>
 
+      {/* Right: Actions */}
+      <div className="flex items-center gap-2">
+        {/* Wallet Address + Disconnect (combined) */}
+        <div className="flex items-center bg-white/5 rounded-lg border border-white/10 overflow-hidden">
+          <span className="text-xs text-gray-400 px-3 py-1.5">
+            {truncateAddress(address || "")}
+          </span>
+          <button
+            onClick={() => disconnect()}
+            className="px-2 py-1.5 bg-red-500/10 hover:bg-red-500/20 border-l border-white/10 transition-all"
+            title="Disconnect wallet"
+          >
+            <LogOut className="w-4 h-4 text-red-400" />
+          </button>
+        </div>
+
+        {/* Share/Copy */}
         {context ? (
           <button
             onClick={() =>
@@ -614,7 +763,7 @@ export default function CastComposer() {
             }
             className="p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-lime-400/40 transition-all"
           >
-            <Share2 className="w-5 h-5 text-gray-300" />
+            <Share2 className="w-4 h-4 text-gray-300" />
           </button>
         ) : (
           <button
@@ -626,13 +775,130 @@ export default function CastComposer() {
             }`}
           >
             {copied ? (
-              <Check className="w-5 h-5 text-lime-400 transition-transform duration-300 scale-110" />
+              <Check className="w-4 h-4 text-lime-400 transition-transform duration-300 scale-110" />
             ) : (
-              <Copy className="w-5 h-5 text-gray-300 transition-transform duration-300 hover:scale-105" />
+              <Copy className="w-4 h-4 text-gray-300 transition-transform duration-300 hover:scale-105" />
             )}
           </button>
         )}
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+interface ComposerFooterProps {
+  context?: Context.MiniAppContext;
+  showMobileBuy?: boolean;
+}
+
+function ComposerFooter({
+  context,
+  showMobileBuy = false,
+}: ComposerFooterProps) {
+  const handleBuy = () => {
+    if (context) {
+      sdk.actions.swapToken({
+        sellToken:
+          "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
+      });
+    } else {
+      window.open(
+        `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
+        "_blank",
+      );
+    }
+  };
+
+  return (
+    <div className="fixed bottom-0 left-0 w-full z-50 px-4 py-3 flex flex-col items-center gap-3 bg-gradient-to-t from-[#0f1115]/90 to-transparent">
+      {/* Mobile Buy Button - only visible on small screens */}
+      {showMobileBuy && (
+        <button
+          onClick={handleBuy}
+          className="sm:hidden flex items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
+        >
+          <Wallet2 className="w-4 h-4" />
+          Buy ${TOKEN_NAME}
+        </button>
+      )}
+
+      {/* Credits */}
+      <div className="flex items-center gap-3 text-xs text-gray-500">
+        <span>Built with 💜 by</span>
+
+        <a
+          href="https://farcaster.xyz/cashlessman.eth"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 hover:text-lime-400 transition-colors"
+        >
+          @cashlessman.eth
+          <ExternalLink className="w-3 h-3" />
+        </a>
+        <span className="text-gray-600">•</span>
+        <a
+          href="https://github.com/sah-ban/anonpost"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 hover:text-lime-400 transition-colors"
+        >
+          GitHub
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
+interface QuoteOrReplyProps {
+  showPopup: boolean;
+  setShowPopup: (show: boolean) => void;
+  setCastType: (type: CastType) => void;
+}
+
+function QuoteOrReply({
+  showPopup,
+  setShowPopup,
+  setCastType,
+}: QuoteOrReplyProps) {
+  const handleSelect = (choice: CastType) => {
+    setCastType(choice);
+    setShowPopup(false);
+  };
+
+  return (
+    <div className="text-white">
+      {showPopup && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-[#1a1a1a]/90 to-[#2a2a2a]/90 border border-white/20 shadow-[0_0_30px_rgba(0,0,0,0.6)] rounded-2xl p-8 w-[90%] max-w-sm text-white relative animate-[fadeIn_0.25s_ease-out]">
+            <button
+              onClick={() => setShowPopup(false)}
+              className="absolute top-3 right-3 text-gray-400 hover:text-white transition"
+            >
+              ✕
+            </button>
+            <h2 className="text-xl font-semibold text-center mb-6">
+              Choose an Action
+            </h2>
+
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => handleSelect("quote")}
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 px-5 py-3 rounded-xl font-medium hover:scale-105 hover:shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all duration-200"
+              >
+                Quote Cast
+              </button>
+              <button
+                onClick={() => handleSelect("reply")}
+                className="bg-gradient-to-r from-emerald-500 to-green-500 px-5 py-3 rounded-xl font-medium hover:scale-105 hover:shadow-[0_0_15px_rgba(34,197,94,0.5)] transition-all duration-200"
+              >
+                Reply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
