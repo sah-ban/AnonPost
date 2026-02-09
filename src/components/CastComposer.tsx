@@ -11,6 +11,7 @@ import {
   Lock,
   LogOut,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import Image from "next/image";
 import { FarcasterEmbed } from "react-farcaster-embed/dist/client";
@@ -80,7 +81,11 @@ export default function CastComposer() {
   const { disconnect } = useDisconnect();
   const { connect } = useConnect();
 
-  const { data: balance } = useBalance({
+  const {
+    data: balance,
+    refetch: refetchBalance,
+    isRefetching: isRefetchingBalance,
+  } = useBalance({
     address,
     token: TOKEN_ADDRESS,
     chainId: base.id,
@@ -410,24 +415,36 @@ export default function CastComposer() {
             <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
           </p>
 
-          <button
-            onClick={() =>
-              context
-                ? sdk.actions.swapToken({
-                    sellToken:
-                      "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-                    buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
-                  })
-                : window.open(
-                    `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
-                    "_blank",
-                  )
-            }
-            className="flex items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-6 py-2.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
-          >
-            <Wallet2 className="w-4 h-4" />
-            Buy ${TOKEN_NAME}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() =>
+                context
+                  ? sdk.actions.swapToken({
+                      sellToken:
+                        "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
+                    })
+                  : window.open(
+                      `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
+                      "_blank",
+                    )
+              }
+              className="flex items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-6 py-2.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
+            >
+              <Wallet2 className="w-4 h-4" />
+              Buy ${TOKEN_NAME}
+            </button>
+
+            <button
+              onClick={() => refetchBalance()}
+              className="p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-lime-400/30 text-gray-400 hover:text-lime-400 transition-all"
+              title="Refresh Balance"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${isRefetchingBalance ? "animate-spin" : ""}`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Footer */}
