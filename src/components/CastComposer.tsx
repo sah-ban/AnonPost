@@ -22,9 +22,9 @@ import { formatUnits } from "viem";
 import { useConnect } from "wagmi";
 import { config } from "./providers/WagmiProvider";
 
-const TOKEN_ADDRESS = "0x4ed4e862860bed51a9570b96d89af5e1b0efefed" as const;// DEGEN for now
+const TOKEN_ADDRESS = "0x09c2C08De65b5AfE927236E0A2Ced298c5D2feBa" as const;
 const TOKEN_NAME = "AnonPost";
-const REQUIRED_TOKEN_AMOUNT = 69000;
+const REQUIRED_TOKEN_AMOUNT = 0;
 const COOLDOWN_SECONDS = 60;
 
 type CastType = "cast" | "reply" | "quote";
