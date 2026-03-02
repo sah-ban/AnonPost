@@ -16,16 +16,40 @@ import {
 import Image from "next/image";
 import { FarcasterEmbed } from "react-farcaster-embed/dist/client";
 import "react-farcaster-embed/dist/styles.css";
-import { useAccount, useBalance, useDisconnect } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { base } from "viem/chains";
 import { formatUnits } from "viem";
-import { useConnect } from "wagmi";
+import { useConnect, useReadContract } from "wagmi";
 import { config } from "./providers/WagmiProvider";
 
 const TOKEN_ADDRESS = "0x09c2C08De65b5AfE927236E0A2Ced298c5D2feBa" as const;
 const TOKEN_NAME = "AnonPost";
-const REQUIRED_TOKEN_AMOUNT = 0;
+const REQUIRED_TOKEN_AMOUNT = 69000;
 const COOLDOWN_SECONDS = 60;
+
+function isValidUrl(value: string): boolean {
+  if (!value.trim()) return true; // empty is OK
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function buyToken(context: Context.MiniAppContext | undefined) {
+  if (context) {
+    sdk.actions.swapToken({
+      sellToken: "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
+    });
+  } else {
+    window.open(
+      `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
+      "_blank",
+    );
+  }
+}
 
 type CastType = "cast" | "reply" | "quote";
 
@@ -71,6 +95,8 @@ export default function CastComposer() {
   const [result, setResult] = useState<CastResult>({});
   const maxChars = 1024;
   const [embeds, setEmbeds] = useState<EmbedInput[]>([]);
+  const [urlError1, setUrlError1] = useState("");
+  const [urlError2, setUrlError2] = useState("");
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [username, setUsername] = useState<string>();
@@ -82,14 +108,27 @@ export default function CastComposer() {
   const { connect } = useConnect();
 
   const {
-    data: balance,
+    data: rawBalance,
     refetch: refetchBalance,
     isRefetching: isRefetchingBalance,
-  } = useBalance({
-    address,
-    token: TOKEN_ADDRESS,
+  } = useReadContract({
+    address: TOKEN_ADDRESS,
+    abi: [
+      {
+        inputs: [{ internalType: "address", name: "account", type: "address" }],
+        name: "balanceOf",
+        outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+        stateMutability: "view",
+        type: "function",
+      },
+    ] as const,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
     chainId: base.id,
+    query: { enabled: !!address },
   });
+  const balance =
+    rawBalance !== undefined ? { value: rawBalance as bigint } : undefined;
 
   const userBalance = balance ? Number(formatUnits(balance.value, 18)) : 0;
 
@@ -110,8 +149,10 @@ export default function CastComposer() {
     const possibleEmbeds: EmbedInput[] = [];
 
     if (imageUrl.trim()) possibleEmbeds.push({ url: imageUrl.trim() });
-    if (embedUrl1.trim()) possibleEmbeds.push({ url: embedUrl1.trim() });
-    if (embedUrl2.trim()) possibleEmbeds.push({ url: embedUrl2.trim() });
+    if (embedUrl1.trim() && isValidUrl(embedUrl1))
+      possibleEmbeds.push({ url: embedUrl1.trim() });
+    if (embedUrl2.trim() && isValidUrl(embedUrl2))
+      possibleEmbeds.push({ url: embedUrl2.trim() });
     if (castType === "quote" && castIdFid && castIdHash) {
       possibleEmbeds.push({
         castId: { fid: Number(castIdFid), hash: castIdHash.trim() },
@@ -253,6 +294,8 @@ export default function CastComposer() {
       setText("");
       setEmbedUrl1("");
       setEmbedUrl2("");
+      setUrlError1("");
+      setUrlError2("");
       setImageUrl("");
       setCastIdFid("");
       setCastIdHash("");
@@ -309,149 +352,28 @@ export default function CastComposer() {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  if (!isConnected) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-4">
-        <div className="flex flex-col items-center justify-center flex-1">
-          {/* Logo */}
-          <div className="relative w-24 h-24 mb-6">
-            <Image
-              src="/icon.png"
-              alt="AnonPost"
-              fill
-              sizes="96px"
-              className="rounded-full border-2 border-lime-400/40 object-cover shadow-lg shadow-lime-500/20"
-              priority
-            />
-          </div>
+  const hasFullAccess = isConnected && userBalance >= REQUIRED_TOKEN_AMOUNT;
+  const [walletPrompt, setWalletPrompt] = useState<{
+    type: "connect" | "buy";
+    message: string;
+  } | null>(null);
 
-          {/* App Name */}
-          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-lime-400 to-emerald-400 bg-clip-text text-transparent">
-            AnonPost
-          </h1>
+  const handleBuy = () => buyToken(context);
 
-          {/* Description */}
-          <p className="text-gray-400 text-center mb-8 max-w-xs">
-            Post anonymously on Farcaster. Your identity stays hidden, your
-            voice gets heard.
-          </p>
-
-          {/* Connect Button */}
-          <button
-            onClick={handleConnect}
-            className="flex items-center gap-3 bg-gradient-to-r from-lime-500 to-emerald-500 text-black font-semibold px-8 py-3 rounded-xl shadow-lg shadow-lime-500/30 hover:shadow-lime-500/50 hover:scale-105 transition-all duration-200"
-          >
-            <Wallet2 className="w-5 h-5" />
-            Connect Wallet
-          </button>
-
-          {/* Token requirement notice */}
-          <p className="text-gray-500 text-sm mt-6 text-center">
-            Requires{" "}
-            <span className="text-lime-400 font-medium">
-              {REQUIRED_TOKEN_AMOUNT.toLocaleString()}
-            </span>{" "}
-            <span className="text-sky-400">${TOKEN_NAME}</span> on Base to post
-          </p>
-        </div>
-
-        {/* Footer */}
-        <ComposerFooter />
-      </div>
-    );
-  }
-
-  if (userBalance < REQUIRED_TOKEN_AMOUNT) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-gray-100 p-6 text-center select-none">
-        {/* Header */}
-        <div className="fixed top-0 left-0 w-full z-50 px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="relative w-8 h-8">
-              <Image
-                src="/icon.png"
-                alt="AnonPost"
-                fill
-                sizes="32px"
-                className="rounded-full border border-white/20 object-cover"
-                priority
-              />
-            </div>
-            <span className="text-sm font-medium text-gray-300">AnonPost</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
-              {truncateAddress(address || "")}
-            </span>
-            <button
-              onClick={() => disconnect()}
-              className="p-2 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all"
-              title="Disconnect wallet"
-            >
-              <LogOut className="w-4 h-4 text-red-400" />
-            </button>
-          </div>
-        </div>
-
-        {/* Main content */}
-        <div className="flex-1 flex flex-col items-center justify-center">
-          <Lock size={64} className="text-red-400 mb-6" />
-          <h1 className="text-3xl font-semibold mb-3">Access Restricted</h1>
-          <p className="text-gray-400 mb-6">
-            You need at least{" "}
-            <span className="text-lime-400 font-semibold">
-              {REQUIRED_TOKEN_AMOUNT.toLocaleString()}
-            </span>{" "}
-            <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span> to
-            post on @anonpost.eth
-          </p>
-
-          <p className="text-gray-400 mb-6">
-            You currently have{" "}
-            <span className="text-red-400 font-semibold">
-              {userBalance.toLocaleString()}{" "}
-            </span>
-            <span className="text-sky-500 font-semibold">${TOKEN_NAME}</span>.
-          </p>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() =>
-                context
-                  ? sdk.actions.swapToken({
-                      sellToken:
-                        "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-                      buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
-                    })
-                  : window.open(
-                      `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
-                      "_blank",
-                    )
-              }
-              className="flex items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-6 py-2.5 rounded-xl font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
-            >
-              <Wallet2 className="w-4 h-4" />
-              Buy ${TOKEN_NAME}
-            </button>
-
-            <button
-              onClick={() => refetchBalance()}
-              className="p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-lime-400/30 text-gray-400 hover:text-lime-400 transition-all"
-              title="Refresh Balance"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${isRefetchingBalance ? "animate-spin" : ""}`}
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <ComposerFooter />
-      </div>
-    );
-  }
+  const showAccessPrompt = (actionType: "links" | "images") => {
+    if (!isConnected) {
+      setWalletPrompt({
+        type: "connect",
+        message: `Connect wallet to add ${actionType}`,
+      });
+    } else {
+      setWalletPrompt({
+        type: "buy",
+        message: `Requires ${REQUIRED_TOKEN_AMOUNT.toLocaleString()} $${TOKEN_NAME} to add ${actionType}`,
+      });
+    }
+    setTimeout(() => setWalletPrompt(null), 3500);
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full bg-gradient-to-br from-[#0f1115] via-[#1b1e25] to-[#0c0e12] text-white px-2">
@@ -466,6 +388,10 @@ export default function CastComposer() {
           disconnect={disconnect}
           truncateAddress={truncateAddress}
           userBalance={userBalance}
+          isConnected={isConnected}
+          handleConnect={handleConnect}
+          refetchBalance={refetchBalance}
+          isRefetchingBalance={isRefetchingBalance}
         />
       </div>
 
@@ -474,7 +400,9 @@ export default function CastComposer() {
         setShowPopup={setShowPopup}
         setCastType={setCastType}
       />
-
+      <div className="text-center text-lg font-bold mb-3.5 italic">
+        Post Anonymously, on Farcaster
+      </div>
       <div className="w-full max-w-lg bg-[#111418]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl p-3 space-y-1 transition-transform hover:scale-[1.01] hover:border-lime-400/40">
         {castHash &&
           username &&
@@ -508,57 +436,160 @@ export default function CastComposer() {
         </div>
 
         {/* Embed URLs */}
-        <div>
+        <div className="relative">
           <label className="block text-sm font-medium mb-1">URLs</label>
-          <input
-            value={embedUrl1}
-            onChange={(e) => setEmbedUrl1(e.target.value)}
-            placeholder="https://example.com"
-            disabled={embeds.length >= 2 && !embedUrl1}
-            className={`w-full p-2 bg-[#525760] text-white rounded-lg border border-gray-700 focus:outline-none focus:ring-1 focus:ring-lime-500 resize-none ${
-              embeds.length >= 2 && !embedUrl1.trim()
-                ? "opacity-50 cursor-not-allowed"
-                : ""
-            }`}
-          />
-          <input
-            value={embedUrl2}
-            onChange={(e) => setEmbedUrl2(e.target.value)}
-            placeholder="https://another-site.com"
-            disabled={embeds.length >= 2 && !embedUrl2}
-            className={`w-full p-2 bg-[#525760] text-white rounded-lg border border-gray-700 focus:outline-none focus:ring-1 focus:ring-lime-500 resize-none mt-1 ${
-              embeds.length >= 2 && !embedUrl2.trim()
-                ? "opacity-50 cursor-not-allowed"
-                : ""
-            }`}
-          />
+          {!hasFullAccess ? (
+            <button
+              onClick={() => showAccessPrompt("links")}
+              className="w-full p-2 bg-[#525760]/50 text-gray-500 rounded-lg border border-gray-700/50 text-left cursor-pointer hover:border-lime-400/30 transition-all flex items-center gap-2"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              {!isConnected
+                ? "Connect wallet to add links"
+                : `Get $${TOKEN_NAME} to add links`}
+            </button>
+          ) : (
+            <>
+              <input
+                value={embedUrl1}
+                onChange={(e) => {
+                  setEmbedUrl1(e.target.value);
+                  if (urlError1) setUrlError1("");
+                }}
+                onBlur={(e) => {
+                  const v = e.target.value;
+                  setUrlError1(
+                    v && !isValidUrl(v)
+                      ? "Enter a valid URL (https://...)"
+                      : "",
+                  );
+                }}
+                placeholder="https://example.com"
+                disabled={embeds.length >= 2 && !embedUrl1}
+                className={`w-full p-2 bg-[#525760] text-white rounded-lg border focus:outline-none focus:ring-1 focus:ring-lime-500 resize-none ${
+                  urlError1
+                    ? "border-red-500"
+                    : embeds.length >= 2 && !embedUrl1.trim()
+                      ? "border-gray-700 opacity-50 cursor-not-allowed"
+                      : "border-gray-700"
+                }`}
+              />
+              {urlError1 && (
+                <p className="text-red-400 text-xs mt-0.5 ml-1">{urlError1}</p>
+              )}
+              <input
+                value={embedUrl2}
+                onChange={(e) => {
+                  setEmbedUrl2(e.target.value);
+                  if (urlError2) setUrlError2("");
+                }}
+                onBlur={(e) => {
+                  const v = e.target.value;
+                  setUrlError2(
+                    v && !isValidUrl(v)
+                      ? "Enter a valid URL (https://...)"
+                      : "",
+                  );
+                }}
+                placeholder="https://another-site.com"
+                disabled={embeds.length >= 2 && !embedUrl2}
+                className={`w-full p-2 bg-[#525760] text-white rounded-lg border focus:outline-none focus:ring-1 focus:ring-lime-500 resize-none mt-1 ${
+                  urlError2
+                    ? "border-red-500"
+                    : embeds.length >= 2 && !embedUrl2.trim()
+                      ? "border-gray-700 opacity-50 cursor-not-allowed"
+                      : "border-gray-700"
+                }`}
+              />
+              {urlError2 && (
+                <p className="text-red-400 text-xs mt-0.5 ml-1">{urlError2}</p>
+              )}
+            </>
+          )}
         </div>
 
         {/* Action Bar */}
+        {/* Wallet prompt toast */}
+        {walletPrompt && (
+          <div className="rounded-xl border border-yellow-400/30 bg-yellow-500/10 p-2.5 text-yellow-300 text-sm font-medium flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+              {walletPrompt.message}
+            </div>
+            {walletPrompt.type === "connect" ? (
+              <button
+                onClick={handleConnect}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-lime-500 to-emerald-500 text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:scale-105 transition-all whitespace-nowrap"
+              >
+                <Wallet2 className="w-3 h-3" />
+                Connect
+              </button>
+            ) : (
+              <button
+                onClick={handleBuy}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-lime-500 to-emerald-500 text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:scale-105 transition-all whitespace-nowrap"
+              >
+                <Wallet2 className="w-3 h-3" />
+                Buy
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mt-2 gap-4">
           {/* Image Upload */}
-          <label className="cursor-pointer flex items-center gap-2">
-            {imageUrl ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="w-6 h-6"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0 0 21 18v-1.94l-2.69-2.689a1.5 1.5 0 0 0-2.12 0l-.88.879.97.97a.75.75 0 1 1-1.06 1.06l-5.16-5.159a1.5 1.5 0 0 0-2.12 0L3 16.061Zm10.125-7.81a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            ) : (
+          {hasFullAccess ? (
+            <label className="cursor-pointer flex items-center gap-2">
+              {imageUrl ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0 0 21 18v-1.94l-2.69-2.689a1.5 1.5 0 0 0-2.12 0l-.88.879.97.97a.75.75 0 1 1-1.06 1.06l-5.16-5.159a1.5 1.5 0 0 0-2.12 0L3 16.061Zm10.125-7.81a1.125 1.125 0 1 1 2.25 0 1.125 1.125 0 0 1-2.25 0Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.5"
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
+                  />
+                </svg>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+                disabled={embeds.length >= 2 && !imageUrl.trim()}
+              />
+            </label>
+          ) : (
+            <button
+              onClick={() => showAccessPrompt("images")}
+              className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              <Lock className="w-4 h-4" />
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth="1.5"
                 stroke="currentColor"
-                className="w-6 h-6"
+                className="w-6 h-6 opacity-50"
               >
                 <path
                   strokeLinecap="round"
@@ -566,15 +597,8 @@ export default function CastComposer() {
                   d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
                 />
               </svg>
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-              disabled={embeds.length >= 2 && !imageUrl.trim()}
-            />
-          </label>
+            </button>
+          )}
 
           {/* Embed Counter */}
           <div className="flex flex-col text-xs text-gray-400 mt-1">
@@ -663,7 +687,12 @@ export default function CastComposer() {
           isTyping ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
       >
-        <ComposerFooter context={context} showMobileBuy={true} />
+        <ComposerFooter
+          context={context}
+          userBalance={userBalance}
+          refetchBalance={refetchBalance}
+          isRefetchingBalance={isRefetchingBalance}
+        />
       </div>
     </div>
   );
@@ -675,6 +704,10 @@ interface ComposerHeaderProps {
   disconnect: () => void;
   truncateAddress: (addr: string) => string;
   userBalance: number;
+  isConnected: boolean;
+  handleConnect: () => void;
+  refetchBalance: () => void;
+  isRefetchingBalance: boolean;
 }
 
 function ComposerHeader({
@@ -683,6 +716,10 @@ function ComposerHeader({
   disconnect,
   truncateAddress,
   userBalance,
+  isConnected,
+  handleConnect,
+  refetchBalance,
+  isRefetchingBalance,
 }: ComposerHeaderProps) {
   const [copied, setCopied] = useState(false);
 
@@ -696,20 +733,7 @@ function ComposerHeader({
     }
   };
 
-  const handleBuy = () => {
-    if (context) {
-      sdk.actions.swapToken({
-        sellToken:
-          "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
-      });
-    } else {
-      window.open(
-        `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
-        "_blank",
-      );
-    }
-  };
+  const handleBuy = () => buyToken(context);
 
   return (
     <div className="fixed top-0 left-0 w-full z-50 px-4 py-3 flex items-center justify-between bg-gradient-to-b from-[#0f1115]/90 to-transparent backdrop-blur-sm">
@@ -720,7 +744,7 @@ function ComposerHeader({
             ? () => sdk.actions.viewProfile({ fid: 1009125 })
             : () => window.open("https://farcaster.xyz/anonpost.eth", "_blank")
         }
-        className="flex items-center gap-2 group"
+        className="flex items-center gap-2 group cursor-pointer"
       >
         <div className="relative w-9 h-9">
           <Image
@@ -737,37 +761,64 @@ function ComposerHeader({
         </span>
       </button>
 
-      {/* Center: Balance + Buy (combined) */}
-      <button
-        onClick={handleBuy}
-        className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-lime-500/10 border border-white/10 hover:border-lime-400/30 px-3 py-1.5 rounded-lg transition-all group"
-      >
-        <span className="text-lime-400 font-medium text-xs">
-          {userBalance.toLocaleString()}
-        </span>
-        <span className="text-sky-400 text-xs">${TOKEN_NAME}</span>
-        <span className="text-gray-500">|</span>
-        <span className="text-lime-300 text-xs font-medium group-hover:text-lime-200 flex items-center gap-1">
-          <Wallet2 className="w-3.5 h-3.5" />
-          Buy
-        </span>
-      </button>
+      {/* Center: Balance + Buy (combined) — only when connected */}
+      {isConnected && (
+        <div className="hidden sm:flex items-center gap-1">
+          <div className="flex items-center gap-2 bg-white/5 hover:bg-lime-500/10 border border-white/10 hover:border-lime-400/30 px-3 py-1.5 rounded-lg transition-all group">
+            <span className="text-lime-400 font-medium text-xs">
+              {Intl.NumberFormat("en-US", {
+                notation: "compact",
+                maximumFractionDigits: 1,
+              }).format(userBalance)}
+            </span>
+            <span className="text-sky-400 text-xs">${TOKEN_NAME}</span>
+            <span className="text-gray-500">|</span>
+            <button
+              onClick={() => refetchBalance()}
+              className="p-1.5 rounded-lg border border-transparent hover:bg-white/10 hover:border-lime-400/30 text-gray-400 hover:text-lime-400 transition-all hover:cursor-pointer"
+              title="Refresh Balance"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isRefetchingBalance ? "animate-spin" : ""}`}
+              />
+            </button>
+            <span className="text-gray-500">|</span>
+
+            <button onClick={handleBuy}>
+              <span className="p-1.5 rounded-lg border border-transparent hover:bg-white/10 hover:border-lime-400/30 text-gray-400 hover:text-lime-400 transition-all hover:cursor-pointer flex items-center gap-1">
+                <Wallet2 className="w-3.5 h-3.5" />
+                Buy
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
-        {/* Wallet Address + Disconnect (combined) */}
-        <div className="flex items-center bg-white/5 rounded-lg border border-white/10 overflow-hidden">
-          <span className="text-xs text-gray-400 px-3 py-1.5">
-            {truncateAddress(address || "")}
-          </span>
+        {/* Wallet Address + Disconnect (when connected) OR Connect button */}
+        {isConnected ? (
+          <div className="flex items-center bg-white/5 rounded-lg border border-white/10 overflow-hidden">
+            <span className="text-xs text-gray-400 px-3 py-1.5">
+              {truncateAddress(address || "")}
+            </span>
+            <button
+              onClick={() => disconnect()}
+              className="px-2 py-1.5 bg-red-500/10 hover:bg-red-500/20 border-l border-white/10 transition-all cursor-pointer"
+              title="Disconnect wallet"
+            >
+              <LogOut className="w-4 h-4 text-red-400" />
+            </button>
+          </div>
+        ) : (
           <button
-            onClick={() => disconnect()}
-            className="px-2 py-1.5 bg-red-500/10 hover:bg-red-500/20 border-l border-white/10 transition-all"
-            title="Disconnect wallet"
+            onClick={handleConnect}
+            className="flex items-center gap-2 bg-gradient-to-r from-lime-500 to-emerald-500 text-black text-xs font-semibold px-4 py-2 rounded-lg hover:scale-105 transition-all cursor-pointer"
           >
-            <LogOut className="w-4 h-4 text-red-400" />
+            <Wallet2 className="w-3.5 h-3.5" />
+            Connect Wallet
           </button>
-        </div>
+        )}
 
         {/* Share/Copy */}
         {context ? (
@@ -778,7 +829,7 @@ function ComposerHeader({
                 embeds: [`${process.env.NEXT_PUBLIC_URL}`],
               })
             }
-            className="p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-lime-400/40 transition-all"
+            className="p-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-lime-400/40 transition-all cursor-pointer"
           >
             <Share2 className="w-4 h-4 text-gray-300" />
           </button>
@@ -789,7 +840,7 @@ function ComposerHeader({
               copied
                 ? "border-lime-400/40 bg-lime-500/10 shadow-[0_0_8px_rgba(163,255,125,0.3)]"
                 : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-lime-400/40"
-            }`}
+            } cursor-pointer`}
           >
             {copied ? (
               <Check className="w-4 h-4 text-lime-400 transition-transform duration-300 scale-110" />
@@ -806,39 +857,51 @@ function ComposerHeader({
 interface ComposerFooterProps {
   context?: Context.MiniAppContext;
   showMobileBuy?: boolean;
+  userBalance: number;
+  refetchBalance: () => void;
+  isRefetchingBalance: boolean;
 }
 
 function ComposerFooter({
   context,
-  showMobileBuy = false,
+  userBalance,
+  refetchBalance,
+  isRefetchingBalance,
 }: ComposerFooterProps) {
-  const handleBuy = () => {
-    if (context) {
-      sdk.actions.swapToken({
-        sellToken:
-          "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        buyToken: `eip155:8453/erc20:${TOKEN_ADDRESS}`,
-      });
-    } else {
-      window.open(
-        `https://app.uniswap.org/swap?outputCurrency=${TOKEN_ADDRESS}`,
-        "_blank",
-      );
-    }
-  };
+  const handleBuy = () => buyToken(context);
 
   return (
     <div className="fixed bottom-0 left-0 w-full z-50 px-4 py-3 flex flex-col items-center gap-3 bg-gradient-to-t from-[#0f1115]/90 to-transparent">
       {/* Mobile Buy Button - only visible on small screens */}
-      {showMobileBuy && (
-        <button
-          onClick={handleBuy}
-          className="sm:hidden flex items-center gap-2 bg-lime-500/10 border border-lime-400/30 text-lime-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-lime-500/20 hover:text-lime-200 transition-all"
-        >
-          <Wallet2 className="w-4 h-4" />
-          Buy ${TOKEN_NAME}
-        </button>
-      )}
+      <div className="flex items-center gap-1 md:hidden">
+        <div className="flex items-center gap-2 bg-white/5 hover:bg-lime-500/10 border border-white/10 hover:border-lime-400/30 px-3 py-1.5 rounded-lg transition-all group">
+          <span className="text-lime-400 font-medium text-xs">
+            {Intl.NumberFormat("en-US", {
+              notation: "compact",
+              maximumFractionDigits: 1,
+            }).format(userBalance)}
+          </span>
+          <span className="text-sky-400 text-xs">${TOKEN_NAME}</span>
+          <span className="text-gray-500">|</span>
+          <button
+            onClick={() => refetchBalance()}
+            className="p-1.5 rounded-lg border border-transparent hover:bg-white/10 hover:border-lime-400/30 text-gray-400 hover:text-lime-400 transition-all hover:cursor-pointer"
+            title="Refresh Balance"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isRefetchingBalance ? "animate-spin" : ""}`}
+            />
+          </button>
+          <span className="text-gray-500">|</span>
+
+          <button onClick={handleBuy}>
+            <span className="p-1.5 rounded-lg border border-transparent hover:bg-white/10 hover:border-lime-400/30 text-gray-400 hover:text-lime-400 transition-all hover:cursor-pointer flex items-center gap-1">
+              <Wallet2 className="w-3.5 h-3.5" />
+              Buy
+            </span>
+          </button>
+        </div>
+      </div>
 
       {/* Credits */}
       <div className="flex items-center gap-3 text-xs text-gray-500">
