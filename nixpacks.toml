@@ -1,9 +1,9 @@
 [phases.setup]
-nixPkgs = ['nodejs_20', 'yarn']
+nixPkgs = ['nodejs_22', 'yarn']
 
 [phases.install]
 cmds = [
-  "yarn install --legacy-peer-deps"
+  "yarn install --legacy-peer-deps --ignore-engines"
 ]
 
 [phases.build]
