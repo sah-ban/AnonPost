@@ -1,15 +1,20 @@
 [phases.setup]
-nixPkgs = ['nodejs_22', 'yarn']
+nixPkgs = []
+aptPkgs = ["ca-certificates", "curl", "tar", "xz-utils"]
+paths = ["/opt/node/bin"]
+cmds = [
+  "curl --fail --silent --show-error --location --retry 3 https://nodejs.org/dist/v22.23.4/node-v22.23.4-linux-x64.tar.xz -o /tmp/anonpost-node.tar.xz",
+  "echo '1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce  /tmp/anonpost-node.tar.xz' | sha256sum --check -",
+  "mkdir -p /opt/node && tar --extract --xz --no-same-owner --file=/tmp/anonpost-node.tar.xz --directory=/opt/node --strip-components=1",
+  "npm install --global --prefix /opt/node yarn@1.22.22",
+  "node --version && yarn --version",
+]
 
 [phases.install]
-cmds = [
-  "yarn install --legacy-peer-deps --ignore-engines"
-]
+cmds = ["yarn install --legacy-peer-deps --ignore-engines"]
 
 [phases.build]
-cmds = [
-  "yarn build"
-]
+cmds = ["yarn build"]
 
 [start]
-cmd = "yarn start"
+cmd = "node --version && yarn start"
